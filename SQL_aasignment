@@ -1,0 +1,21 @@
+SOLUTION:
+create or replace view data as (select *, lag(user_id,1,0) over(partition by date(created_at),conversation_id) as previous_user_id from (select * ,rank() over(partition by date(created_at),conversation_id order by sent_time) from(select m.conversation_id,c.created_at,m.user_id,m.sent_time from conversations c left join messages m on c.id=m.conversation_id where c.created_at >'2021-01-01' and c.created_at< '2021-12-31')x)y);
+
+Question 1:
+Fetch number of first message sent in a conversation in a day. Date range - 1st Jan 2021 to 31st Dec 2021.
+SOLUTION:
+select date(created_at),count(rank) as no_of_first_message from data group by date(created_at),rank having rank=1;
+
+Question 2:
+Fetch number of first reply message sent in a conversation in a day. Date range - 1st Jan 2021 to 31st Dec 2021.
+SOLUTION:
+select date(created_at), count(distinct(first_reply_time)) as no_of_first_reply from (select *, min(sent_time) over(partition by date(created_at),conversation_id) as first_reply_time from (select * ,first_value(user_id) over (partition by date(created_at),conversation_id) as first_id from data ) x where user_id!=first_id and rank >1)y group by date(created_at) order by date(created_at);
+
+Question 3:
+Total conversation with 3 way messaging. 3 way messaging means User1 sent the message, then User2 replied and finally User1 messaged back. 
+SOLUTION
+select count(distinct(conversation_id)) as total_3_way from (
+select *,
+       count(rank) over(partition by date(created_at),conversation_id) as total,
+       first_value(user_id) over (partition by date(created_at),conversation_id )-last_value(user_id) over(partition by date(created_at),conversation_id) as diff from data) x where total>=3 and diff=0  and rank!=1 and previous_user_id!=user_id;
+ 
